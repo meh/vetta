@@ -17,7 +17,7 @@ class Surface
 
 	attr_reader :element, :engine
 	attr_reader :x, :y, :width, :height
-	def_delegators :@engine, :path, :circle, :rectangle, :ellipse, :image, :text, :size=
+	def_delegators :@engine, :clear, :path, :circle, :rectangle, :ellipse, :image, :text, :size=
 
 	def initialize(*args)
 		@element = case args.first
@@ -56,6 +56,18 @@ class Surface
 			else
 				raise NotImplementedError
 		end
+	end
+
+	def insert(into)
+		if into.is_a?(DOM::Element)
+			into << @element
+		else
+			$document[into] << @element
+		end
+	end
+
+	def remove
+		@element.remove
 	end
 end
 

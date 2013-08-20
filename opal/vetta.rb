@@ -11,6 +11,7 @@
 require 'browser'
 require 'browser/dom'
 
+require 'vetta/path'
 require 'vetta/engine'
 require 'vetta/svg'
 

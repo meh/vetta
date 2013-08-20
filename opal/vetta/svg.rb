@@ -11,437 +11,275 @@
 class Vetta
 
 class SVG < Engine
+	SVG_NAMESPACE   = 'http://www.w3.org/2000/svg'
+	XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink'
+
 	attr_reader :surface
 
 	def initialize(surface)
 		@element = create(:svg)
 
-		@element[:width]   = surface.width
-		@element[:height]  = surface.height
-		@element[:version] = 1.1
-		@element[:xmlns]   = 'http://www.w3.org/2000/svg'
+		@element.attributes.merge!({
+			width:   surface.width,
+			height:  surface.height,
+			version: 1.1,
+			xmlns:   SVG_NAMESPACE
+		})
 
 		@element.style(overflow: 'hidden')
 
 		@surface = surface
 		@surface.element << @element
+
+		@defaults = {
+			circle: {
+				fill:   :none,
+				stroke: :black
+			},
+
+			rectangle: {
+				fill:   :none,
+				stroke: :black
+			},
+
+			ellipse: {
+				fill:  :none,
+				stroke: :black
+			},
+
+			iamge: {
+				preserveAspectRatio: :none
+			},
+
+			text: {
+				stroke: :none,
+				fill:   :black,
+				text:   { anchor: :middle }
+			},
+
+			path: {
+				fill:   :none,
+				stroke: :black
+			}
+		}
+
+		@id = 0
+	end
+
+	def clear
+		@element.children.each(&:remove)
+	end
+
+	def circle(options = {})
+		el = init(create(:circle), options, @defaults[:circle])
+		el.attributes.merge!({
+			cx: options[:x],
+			cy: options[:y],
+			r:  options[:r] || options[:radius]
+		})
+
+		append(el)
+	end
+
+	def rectangle(options = {})
+		el = init(create(:rect), options, @defaults[:rectangle])
+		el.attributes.merge!({
+			x:      options[:x],
+			y:      options[:y],
+			width:  options[:w] || options[:width],
+			height: options[:h] || options[:height],
+			r:      options[:r] || options[:radius] || 0,
+			rx:     options[:r] || options[:radius] || 0,
+			ry:     options[:r] || options[:radius] || 0
+		})
+
+		append(el)
+	end
+
+	def ellipse(options = {})
+		el = init(create(:ellipse), options, @defaults[:rectangle])
+		el.attributes.merge!({
+			x:  options[:x],
+			y:  options[:y],
+			rx: (options[:r] || options[:radius])[:x],
+			ry: (options[:r] || options[:radius])[:y]
+		})
+
+		append(el)
+	end
+
+	def image(source, options = {}, &block)
+		el = init(create(:image), options, @defaults[:image])
+		el.attributes.merge!({
+			x:      options[:x],
+			y:      options[:y],
+			width:  options[:w] || options[:width],
+			height: options[:h] || options[:height]
+		})
+
+		el.set(:src, source)
+		el.set('xlink:href', source, namespace: XLINK_NAMESPACE)
+
+		append(el)
+	end
+
+	def text(content, options = {}, &block)
+		if block
+			path = init(create(:path), options, @defaults[:path])
+			path.attributes.merge!({
+				id: new_id,
+				d:  path_for(&block)
+			})
+
+			definitions << path
+
+			options[:along] = path
+		end
+
+		if path = options[:along]
+			txt = create(:text)
+			txp = create(:textPath)
+
+			txp.set('xlink:href', "##{path[:id]}", namespace: XLINK_NAMESPACE)
+			txp.text = content
+
+			append(txt << txp)
+		else
+			txt      = init(create(:text), options, @defaults[:text])
+			txt.text = content
+
+			append(txt)
+		end
 	end
 
 	def path(options = {}, &block)
-		el   = attributes(create(:path), options)
+		path = init(create(:path), options, @defaults[:path])
+		path[:d] = path_for(&block)
+
+		append(path)
+	end
+
+private
+	def definitions
+		return @defs if @defs
+
+		@defs = create(:defs)
+		@element << @defs
+
+		@defs
+	end
+
+	def new_id
+		"x#{@id += 1}"
+	end
+
+	def create(tag)
+		$document.create_element(tag, namespace: SVG_NAMESPACE)
+	end
+
+	def append(el)
+		@element << el
+
+		el
+	end
+
+	def init(el, attrs, defaults = {})
+		el[:id] = new_id
+
+		case fill = attrs.delete(:fill) || defaults[:fill]
+		when Hash
+			if color = fill[:color]
+				el[:fill] = color
+			end
+
+			if opacity = fill[:opacity]
+				el['fill-opacity'] = opacity
+			end
+
+		when String
+			el[:fill] = fill
+		end
+
+		case stroke = attrs.delete(:stroke) || defaults[:stroke]
+		when Hash
+			if color = stroke[:color]
+				el[:stroke] = color
+			end
+
+			if width = stroke[:width]
+				el['stroke-width'] = width
+			end
+
+			if (line = stroke[:line]).is_a?(Hash)
+				if cap = line[:cap]
+					el['stroke-linecap'] = cap
+				end
+
+				if join = line[:join]
+					el['stroke-linejoin'] = join
+				end
+			end
+
+		when String
+			el[:stroke] = stroke
+		end
+
+		el.style(attrs)
+
+		el
+	end
+
+	def path_for(&block)
 		path = Path.new(&block).to_s
 
 		unless path.start_with?('M') || path.start_with?('m')
 			path = 'M 0 0 ' + path
 		end
 
-		el[:d] = path
-
-		append(el)
+		path
 	end
 
-private
-	def create(tag)
-		$document.create_element(tag, namespace: 'http://www.w3.org/2000/svg')
-	end
-
-	def append(el)
-		@element << el
-
-		self
-	end
-
-	def attributes(el, attrs)
-		if fill = attrs[:fill]
-			el[:fill] = fill
-		else
-			el[:fill] = :none
-		end
-
-		if stroke = attrs[:stroke]
-			el[:stroke] = stroke
-		else
-			el[:stroke] = '#000'
-		end
-
-		el
-	end
-
-	class Path
-		class Move
-			attr_reader :x, :y
-
-			def initialize(*args)
-				if args.first.is_a?(Hash)
-					@x, @y = args.first[:x], args.first[:y]
-				else
-					@x, @y = args
-				end
-			end
-
-			class Absolute < Move
-				def to_s
-					"M #{x} #{y}"
-				end
-			end
-
-			class Relative < Move
-				def to_s
-					"m #{x} #{y}"
-				end
-			end
-		end
-
-		class Line
-			attr_reader :x, :y
-
-			def initialize(*args)
-				if args.first.is_a?(Hash)
-					@x, @y = args.first[:x], args.first[:y]
-				else
-					@x, @y = args
-				end
-			end
-
-			class Absolute < Line
-				def to_s
-					"L #{x} #{y}"
-				end
-			end
-
-			class Relative < Line
-				def to_s
-					"l #{x} #{y}"
-				end
-			end
-
-			class Horizontal
-				attr_reader :x
-
-				def initialize(*args)
-					if args.first.is_a?(Hash)
-						@x = args.first[:x]
-					else
-						@x, = args
-					end
-				end
-
-				class Absolute < Horizontal
-					def to_s
-						"H #{x}"
-					end
-				end
-
-				class Relative < Horizontal
-					def to_s
-						"h #{x}"
-					end
-				end
-			end
-
-			class Vertical
-				attr_reader :y
-
-				def initialize(*args)
-					if args.first.is_a?(Hash)
-						@y = args.first[:y]
-					else
-						@y, = args
-					end
-				end
-
-				class Absolute < Vertical
-					def to_s
-						"V #{y}"
-					end
-				end
-
-				class Relative < Vertical
-					def to_s
-						"v #{y}"
-					end
-				end
-			end
-
-			class Closed
-				def to_s
-					"Z"
-				end
-			end
-		end
-
-		module Curve
-			class Cubic
-				attr_reader :x1, :y1, :x2, :y2, :x, :y
-
-				def initialize(*args)
-					if args.first.is_a?(Hash)
-						@x1, @y1 = args.first[:x1], args.first[:y1]
-						@x2, @y2 = args.first[:x2], args.first[:y2]
-						@x,  @y  = args.first[:x], args.first[:y]
-					else
-						@x1, @y1, @x2, @y2, @x, @y = args
-					end
-				end
-
-				class Absolute < Cubic
-					def to_s
-						"C #{x1} #{y1}, #{x2} #{y2}, #{x} #{y}"
-					end
-				end
-
-				class Relative < Cubic
-					def to_s
-						"c #{x1} #{y1}, #{x2} #{y2}, #{x} #{y}"
-					end
-				end
-
-				class Continuation
-					attr_reader :x2, :y2, :x, :y
-
-					def initialize(*args)
-						if args.first.is_a?(Hash)
-							@x2, @y2 = args.first[:x2], args.first[:y2]
-							@x,  @y  = args.first[:x], args.first[:y]
-						else
-							@x2, @y2, @x, @y = args
-						end
-					end
-
-					class Absolute < Continuation
-						def to_s
-							"S #{x2} #{y2}, #{x} #{y}"
-						end
-					end
-
-					class Relative < Continuation
-						def to_s
-							"s #{x2} #{y2}, #{x} #{y}"
-						end
-					end
-				end
-			end
-
-			class Quadratic
-				attr_reader :x1, :y1, :x, :y
-
-				def initialize(*args)
-					if args.first.is_a?(Hash)
-						@x1, @y1 = args.first[:x1], args.first[:y1]
-						@x,  @y  = args.first[:x], args.first[:y]
-					else
-						@x1, @y1, @x, @y = args
-					end
-				end
-
-				class Absolute < Quadratic
-					def to_s
-						"Q #{x1} #{y1}, #{x} #{y}"
-					end
-				end
-
-				class Relative < Quadratic
-					def to_s
-						"q #{x1} #{y1}, #{x} #{y}"
-					end
-				end
-
-				class Continuation
-					attr_reader :x, :y
-
-					def initialize(*args)
-						if args.first.is_a?(Hash)
-							@x, @y = args.first[:x], args.first[:y]
-						else
-							@x, @y = args
-						end
-					end
-
-					class Absolute < Continuation
-						def to_s
-							"T #{x} #{y}"
-						end
-					end
-
-					class Relative < Continuation
-						def to_s
-							"t #{x} #{y}"
-						end
-					end
-				end
-			end
-
-			class Arc
-				attr_reader :rx, :ry, :rotation, :x, :y
-
-				def initialize(*args)
-					if args.first.is_a?(Hash)
-						@rx, @ry  = args.first[:rx], args.first[:ry]
-						@x,  @y   = args.first[:x], args.first[:y]
-						@rotation = args.first[:rotation] || args.first[:rot]
-
-						@large = args.first[:large]
-						@sweep = args.first[:sweep]
-					else
-						@rx, @ry, @rot, @x, @y = args
-
-						@large = args.last[:large]
-						@sweep = args.last[:sweep]
-					end
-				end
-
-				def large?
-					!!@large
-				end
-
-				def sweep?
-					!!@sweep
-				end
-
-				class Absolute < Arc
-					def to_s
-						"A #{rx} #{ry} #{rotation} #{large? ? 1 : 0} #{sweep? ? 1 : 0} #{x} #{y}"
-					end
-				end
-
-				class Relative < Arc
-					def to_s
-						"a #{rx} #{ry} #{rot} #{large? ? 1 : 0} #{sweep? ? 1 : 0} #{x} #{y}"
-					end
-				end
-			end
-		end
-
-		def initialize(&block)
-			@elements = []
-
-			extend(&block)
-		end
-
-		def extend(&block)
-			instance_eval(&block)
-
-			self
-		end
-
-		def move!(*args)
-			@elements << Move::Absolute.new(*args)
-
-			self
-		end
-
-		def move(*args)
-			@elements << Move::Relative.new(*args)
-
-			self
-		end
-
-		def line!(*args)
-			@elements << Line::Absolute.new(*args)
-
-			self
-		end
-
-		def line(*args)
-			@elements << Line::Relative.new(*args)
-
-			self
-		end
-
-		def horizontal_line!(*args)
-			@elements << Line::Horizontal::Absolute.new(*args)
-
-			self
-		end
-
-		def horizontal_line(*args)
-			@elements << Line::Horizontal::Relative.new(*args)
-
-			self
-		end
-
-		def vertical_line!(*args)
-			@elements << Line::Vertical::Absolute.new(*args)
-
-			self
-		end
-
-		def vertical_line(*args)
-			@elements << Line::Vertical::Relative.new(*args)
-
-			self
-		end
-
-		def closed(&block)
-			instance_eval(&block) if block
-
-			@elements << Line::Closed.new
-
-			self
-		end
-
-		def cubic_curve!(*args)
-			@elements << Curve::Cubic::Absolute.new(*args)
-
-			self
-		end
-
-		def cubic_curve(*args)
-			@elements << Curve::Cubic::Relative.new(*args)
-
-			self
-		end
-
-		def quadratic_curve!(*args)
-			@elements << Curve::Quadratic::Absolute.new(*args)
-
-			self
-		end
-
-		def quadratic_curve(*args)
-			@elements << Curve::Quadratic::Relative.new(*args)
-
-			self
-		end
-
-		def continue!(*args)
-			case @elements.last
-			when Curve::Cubic, Curve::Cubic::Continuation
-				@elements << Curve::Cubic::Continuation::Absolute.new(*args)
-
-			when Curve::Quadratic, Curve::Quadratic::Continuation
-				@elements << Curve::Quadratic::Continuation::Absolute.new(*args)
-			end
-
-			self
-		end
-
-		def continue(*args)
-			case @elements.last
-			when Curve::Cubic, Curve::Cubic::Continuation
-				@elements << Curve::Cubic::Continuation::Relative.new(*args)
-
-			when Curve::Quadratic, Curve::Quadratic::Continuation
-				@elements << Curve::Quadratic::Continuation::Relative.new(*args)
-			end
-
-			self
-		end
-
-		def arc!(*args)
-			Arc::Absolute.new(*args)
-		end
-
-		def arc(*args)
-			Arc::Relative.new(*args)
-		end
+	class Path < Path
+		# TODO: remove these
+		Move  = Vetta::Path::Move
+		Line  = Vetta::Path::Line
+		Curve = Vetta::Path::Curve
 
 		def to_s
-			@elements.map(&:to_s).join(" ")
-		end
+			to_a.map {|e|
+				case e
+				when Move
+					"#{e.absolute? ? ?M : ?m} #{e.x} #{e.y}"
 
-		def to_a
-			@elements
+				when Line
+					"#{e.absolute? ? ?L : ?l} #{e.x} #{e.y}"
+
+				when Line::Horizontal
+					"#{e.absolute? ? ?H : ?h} #{e.x}"
+
+				when Line::Vertical
+					"#{e.absolute? ? ?V : ?v} #{e.y}"
+
+				when Line::Closed
+					"Z"
+
+				when Curve::Cubic
+					"#{e.absolute? ? ?C : ?c} #{e.x1} #{e.y1}, #{e.x2} #{e.y2}, #{e.x} #{e.y}"
+
+				when Curve::Cubic::Continuation
+					"#{e.absolute? ? ?S : ?s} #{e.x2} #{e.y2}, #{e.x} #{e.y}"
+
+				when Curve::Quadratic
+					"#{e.absolute? ? ?Q : ?q} #{e.x1} #{e.y1}, #{e.x} #{e.y}"
+
+				when Curve::Quadratic::Continuation
+					"#{e.absolute? ? ?T : ?t} #{e.x} #{e.y}"
+
+				when Curve::Arc
+					"#{e.absolute? ? ?A : ?a} #{e.rx} #{e.ry} #{e.rotation} #{e.large? ? 1 : 0} #{e.sweep? ? 1 : 0} #{e.x} #{e.y}"
+
+				end
+			}.join(' ')
 		end
 	end
 end

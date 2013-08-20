@@ -11,6 +11,10 @@
 class Vetta
 
 class Engine
+	def clear
+		raise NotImplementedError
+	end
+
 	def path(*)
 		raise NotImplementedError
 	end

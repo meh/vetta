@@ -20,7 +20,6 @@ describe Vetta::Surface do
 	describe '#path' do
 		it 'draws a path' do
 			v = Vetta::Surface.new(width: 300, height: 200)
-			$document.body << v.element
 
 			v.path stroke: 'red' do
 				closed {
@@ -37,4 +36,37 @@ describe Vetta::Surface do
 			end
 		end
 	end
+
+	describe '#text' do
+		it 'draws text' do
+			v = Vetta::Surface.new(width: 300, height: 200)
+
+			v.text 'lol' do
+				move! x: 0, y: 30
+				line  x: 50, y: 50
+			end
+		end
+
+		it 'draws text along a path' do
+			v = Vetta::Surface.new(width: 300, height: 200)
+			v.insert($document.body)
+
+			p = v.path stroke: 'red' do
+				line x: 10, y: 10
+				line x: 50, y: 10
+				line x: 60, y: -10
+			end
+
+			v.text 'kkkkkkkkkkkkkkkkk', along: p
+		end
+	end
+
+	describe '#rectangle' do
+		it 'draws a rectangle' do
+			v = Vetta::Surface.new(width: 300, height: 200)
+
+			v.rectangle x: 10, y: 10, width: 30, height: 40
+		end
+	end
+
 end

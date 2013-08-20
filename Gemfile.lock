@@ -1,14 +1,14 @@
 GIT
   remote: git://github.com/opal/opal-spec.git
-  revision: 27d82acd43ac9433fcaeca35c5b36fb31a681541
+  revision: f3a292118259cf06416b873854f51b6eaa22a964
   specs:
     opal-spec (0.3.0)
-      opal (~> 0.4.3)
-      opal-sprockets (~> 0.1.0)
+      opal (~> 0.4.4)
+      opal-sprockets (~> 0.2.0)
 
 GIT
   remote: git://github.com/opal/opal.git
-  revision: 9491badc33e4688e368c1693907c984ad6e4886f
+  revision: 35c24dff7dbb79624186902ffb2d54c81e59b2a1
   specs:
     opal (0.4.4)
       source_map
@@ -32,8 +32,8 @@ GEM
     hike (1.2.3)
     json (1.8.0)
     multi_json (1.7.9)
-    opal-sprockets (0.1.1)
-      opal (~> 0.4.0)
+    opal-sprockets (0.2.0)
+      opal (~> 0.4.4)
       sprockets
     rack (1.5.2)
     rake (10.1.0)
